@@ -1,6 +1,7 @@
 """
 """
 import sys
+from typing import Optional
 from time import localtime, strftime
 from numpy import vectorize
 import polars as pl
@@ -62,12 +63,26 @@ def is_int(x: str, check_is_float: bool=True,) -> int:
 def cast_datatypes(
         dat: pl.LazyFrame,
         column_map: dict[str,pl.DataType] = {},
+        null_values: Optional[list[str]] = None,
         ) -> pl.LazyFrame:
     """
     LazyFrame must have all columns with datatype pl.Utf8
     """
     for col_ in dat.collect_schema().names():
+        if null_values is not None:
+            null_map = dict(zip(null_values, [None]*len(null_values)))
+            dat = (
+                    dat
+                    .with_columns(
+                        pl.col(col_).replace_strict(
+                            null_map,
+                            default = pl.col(col_),
+                            )
+                        )
+                    )
+
         if col_ in column_map.keys():
+            print(f"    {col_} to {column_map[col_]}")
             dat = (
                     dat
                     .with_columns(pl.col(col_).cast(column_map[col_], strict=True))

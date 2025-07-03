@@ -1,4 +1,4 @@
-from typing import Any, Union
+from typing import Any, Union, Optional
 
 from collections.abc import Callable
 from itertools import compress
@@ -10,10 +10,15 @@ from tqdm import tqdm
 from numpy import isnan as npisnan
 from numpy import vectorize as npvectorize
 from seaborn import husl_palette
-from dash import html, dcc
+
+try:
+    from dash import html, dcc
+except ImportError:
+    html = None
+    dcc = None
 
 import pandas as pd
-from plotly.graph_objects import Layout, Scatter, Table, Figure, Bar, Box
+from plotly.graph_objects import Layout, Scatter, Table, Figure, Bar, Box, Histogram
 from plotly.subplots import make_subplots
 import plotly.io as pio
 
@@ -632,10 +637,10 @@ class Visualisation:
 
     def make_dict_axes(
         self,
-        ylims: list[Union[float, int]],
-        y_var: str,
+        ylims: Optional[list[Union[float, int]]],
+        y_var: Optional[str],
         xlims=None,
-        x_var: str=None,
+        x_var: str="x",
         x_start=None,
     ) -> tuple[dict[str, object], dict[str, object]]:
         """
@@ -703,13 +708,14 @@ class Visualisation:
 
             return [x/rndFactor, maxi/rndFactor]
 
-        ticks = xy_round(ylims[1]-ylims[0],
-                        nticks=self.dict_lay.y_axis_nticks)
-        subdivide_y = self.dict_lay.y_axis_ticklabelstep
-        if self.dict_lay.y_axis_dtick is None:
-            dict_yaxis["dtick"] = ticks[0] / subdivide_y
-        dict_yaxis["range"] = [ylims[0], ylims[0]+ticks[1]]
-        dict_yaxis["ticklabelstep"] = subdivide_y
+        if y_var is not None:
+            ticks = xy_round(ylims[1]-ylims[0],
+                            nticks=self.dict_lay.y_axis_nticks)
+            subdivide_y = self.dict_lay.y_axis_ticklabelstep
+            if self.dict_lay.y_axis_dtick is None:
+                dict_yaxis["dtick"] = ticks[0] / subdivide_y
+            dict_yaxis["range"] = [ylims[0], ylims[0]+ticks[1]]
+            dict_yaxis["ticklabelstep"] = subdivide_y
 
         if xlims is not None:
             subdivide_x = self.dict_lay.x_axis_ticklabelstep
@@ -724,10 +730,12 @@ class Visualisation:
             dict_xaxis["ticklabelstep"]=self.dict_lay.x_axis_ticklabelstep
 
         dict_xaxis["title_text"] = x_var
-        dict_yaxis["title_text"] = y_var
+        if y_var is not None:
+            dict_yaxis["title_text"] = y_var
 
-        ylims[0] = dict_yaxis["range"][0]
-        ylims[1] = dict_yaxis["range"][1]
+        if y_var is not None:
+            ylims[0] = dict_yaxis["range"][0]
+            ylims[1] = dict_yaxis["range"][1]
 
         return dict_xaxis, dict_yaxis, ylims
 
@@ -875,45 +883,49 @@ class Visualisation:
 
     def dataPrep(self,
                  data,
-                 y_var,
-                 x_var,
+                 y_var: Optional[str],
+                 x_var: Optional[str],
                  c_name,
-                 y_filterLow,
-                 y_filterHigh,
                  ylims=None,
                  xlims=None,
                  ):
 
-        data = data[(data[y_var].notna() | ~data[y_var].apply(npisnan))]
+        #Rm missing values
+        if y_var is not None:
+            data = data[(data[y_var].notna() | ~data[y_var].apply(npisnan))]
+        if x_var is not None:
+            data = data[(data[x_var].notna() | ~data[x_var].apply(npisnan))]
 
-        is_yNumeric = str(data[y_var].dtype).lower().startswith("int") or \
-                str(data[y_var].dtype).lower().startswith("float")
-        is_xNumeric = str(data[x_var].dtype).lower().startswith("int") or \
-                str(data[x_var].dtype).lower().startswith("float")
+        if y_var is not None:
+            is_yNumeric = str(data[y_var].dtype).lower().startswith("int") or \
+                    str(data[y_var].dtype).lower().startswith("float")
+        if x_var is not None:
+            is_xNumeric = str(data[x_var].dtype).lower().startswith("int") or \
+                    str(data[x_var].dtype).lower().startswith("float")
 
-        if y_filterLow is not None and is_yNumeric:
-            data = data[(data[y_var].dt.year>=y_filterLow)]
-        if y_filterHigh is not None and is_yNumeric:
-            data = data[(data[y_var].dt.year<=y_filterHigh)]
-
-        if data[y_var].min()>=0:
-            ylims_def = self.ylims_def
+        if y_var is not None and is_yNumeric:
+            if data[y_var].min()>=0:
+                ylims_def = self.ylims_def
+            else:
+                ylims_def = self.ylimsNeg_def
+            if ylims is None:
+                ylims = ylims_def(data[y_var])
         else:
-            ylims_def = self.ylimsNeg_def
+            ylims=None
 
-        if ylims is None:
-            ylims = ylims_def(data[y_var])
-        if is_xNumeric:
+        if x_var is not None and is_xNumeric:
             if data[x_var].min()>=0:
                 xlims_def = self.ylims_def
             else:
                 xlims_def = self.ylimsNeg_def
-
             if xlims is None:
                 xlims = xlims_def(data[x_var])
+        else:
+            xlims = None
 
-        upper_limit = [x if x > ylims[1] else pd.NA for x in data[y_var]]
-        data = data.assign(upper_limit=upper_limit)
+        if y_var is not None:
+            upper_limit = [x if x > ylims[1] else pd.NA for x in data[y_var]]
+            data = data.assign(upper_limit=upper_limit)
 
 
         if "results" not in data.columns:
@@ -938,16 +950,6 @@ class Visualisation:
             data[c_name] = data[c_name].fillna("Null")
             data = data.sort_values(by=c_name)
 
-        data_notMissingSubset = data[y_var].notna()
-        data = data[(data_notMissingSubset)]
-
-
-        #Hard-coded for now, needs an update
-        if c_name=="Deprivation":
-            if "Ireland" in data[c_name].tolist():
-                map_notIreland = (data[c_name] != "Ireland")
-                data = data[map_notIreland]
-
         return data, xlims, ylims
 
 
@@ -956,7 +958,7 @@ class Visualisation:
         data: pd.DataFrame,
         y_var: str,
         x_var: str,
-        c_name: [str,None],
+        c_name: [str,None] = None,
         ylims: Union[list[float], None] = None,
         xlims: Union[list[float], None] = None,
         legend: bool = True,
@@ -965,8 +967,6 @@ class Visualisation:
         meta_vars = None,
         out_type = "trace",
         highlight = None,
-        y_filterLow = None,
-        y_filterHigh = None,
         is_errorY = False,
         cols_errorY = ["Lower", "Upper"],
         withPoints = True,
@@ -1027,7 +1027,6 @@ class Visualisation:
                                            y_var,
                                            x_var,
                                            c_name,
-                                           y_filterLow, y_filterHigh,
                                            ylims,
                                            xlims,)
 
@@ -1185,7 +1184,7 @@ class Visualisation:
         data: pd.DataFrame,
         y_var: str,
         x_var: str,
-        c_name: [str,None],
+        c_name: [str,None] = None,
         ylims: Union[list[float], None] = None,
         xlims: Union[list[float], None] = None,
         legend: bool = True,
@@ -1194,8 +1193,6 @@ class Visualisation:
         meta_vars = None,
         out_type = "trace",
         highlight = None,
-        y_filterLow = None,
-        y_filterHigh = None,
         is_errorY = False,
         cols_errorY = ["Lower", "Upper"],
         toDisk = False,
@@ -1243,7 +1240,6 @@ class Visualisation:
                                            y_var,
                                            x_var,
                                            c_name,
-                                           y_filterLow, y_filterHigh,
                                            ylims,
                                            xlims,)
 
@@ -1330,12 +1326,150 @@ class Visualisation:
                              toDisk=toDisk)
 
 
+    def plot_hist(
+        self,
+        data: pd.DataFrame,
+        x_var: str,
+        c_name: Union[str,None] = None,
+        nbinsx: Optional[int] = None,
+        xlims: Union[list[float], None] = None,
+        legend: bool = True,
+        dir: str = ".",
+        interactive = False,
+        meta_vars = None,
+        out_type = "trace",
+        highlight = None,
+        toDisk = False,
+        overrideColour = None,
+        col_colour = None,
+        useObjectColours = False,
+        colourDictionaryId = None,
+    ) -> tuple[list[Scatter], Layout, dict[str, object], dict[str, object],]:
+        """
+        Plot a simple scatter graph
+        Non-automated implementation of plot_incprev()
+
+        Parameters:
+            data (pd.DataFrame):
+            y_var (str):
+            x_var (str):
+            c_name (str):
+            is_numeric_x (bool):
+            ylims (list):
+            xlims (list):
+            legend (bool):
+            dir (str): path to dir to save graphs to disk (if applicable)
+            interactive (bool): Output interactive? If returnTrace==False
+            meta_vars (list): List of column names to show in hover labels\
+                if interactive output
+            returnPlot (bool): Return Figure object? If returnTrace==False
+            returnTrace (bool): Return list of traces or save figure to disk
+
+        Returns:
+            list: List of traces
+                if returnTrace is True
+
+        Notes:
+            returnTrace determines whether a list of traces is returned, or\
+            the final figure. The final figure can be returned as a plotly \
+            Figure object (returnPlot is True), saved to disk as .html \
+            (interactive is True AND returnPlot is False) or saved to disk as \
+            .png (interactive is True AND returnPlot is False)
+            If x axis values represent years, but is in numeric format, then \
+            the xaxis limits (unless otherwise specified) will automatically be\
+             determined in the same way as the y-axis limits, meaning lower \
+            limit will be 0 (causes an issue when tested on data 2000-2021).
+        """
+        data, xlims, _ = self.dataPrep(data,
+                                           None,
+                                           x_var,
+                                           c_name,
+                                           ylims = None,
+                                           xlims = xlims,)
+
+        colourLabelMap, col, _ = self.traceFormatPrep(data,
+                                                      c_name,
+                                                      col_colour,
+                                                      useObjectColours,
+                                                      colourDictionaryId,)
+
+        dict_xaxis, dict_yaxis, ylims = self.make_dict_axes(None, None,
+                                             xlims, x_var,)
+        dict_yaxis["autorange"] = True
+
+        title_text = f"Count by {x_var}"
+        layout = self.get_histLayout(
+                dict_yaxis,
+                dict_xaxis,
+                title_text,)
+
+        #Plotting
+        traces = []
+        #May be better to alter this so that currently stored legend labels in this object are stored as an attr, not just stored at the level of the plotting method. But this will work for now.
+        legendLabels = set()
+
+        if c_name is None:
+            c_name = self.defaultCName
+
+        for name_col, group_col in data.groupby(c_name):
+
+            skip = False
+            if name_col not in self.ignore:
+                for x in self.ignore:
+                    if str(name_col).find(f"'{x}'") != -1:
+                        skip=True
+                        break
+            else:
+                skip=True
+            if skip==True:
+                continue
+
+            #group_col.sort_values(by=x_var, inplace=True)
+
+            if col_colour is not None:
+                nameLabel_colour = colourLabelMap[name_col]
+            else:
+                nameLabel_colour = name_col
+
+            dict_bar = self.dict_lay.make_dict_bar(color=col[nameLabel_colour])
+
+            if overrideColour is not None:
+                dict_bar["color"] = overrideColour
+
+            if meta_vars is not None:
+                meta_label = group_col[meta_vars].applymap(str)
+                meta_label = meta_label.agg(', '.join, axis=1).tolist()
+            else:
+                meta_label = None
+
+            traces.append(
+                Histogram(
+                    x=group_col[x_var],
+                    showlegend=all([legend,
+                                    nameLabel_colour not in legendLabels]),
+                    legendgroup="group",
+                    name=nameLabel_colour,
+                    hoverinfo="text",
+                    hovertext=meta_label,
+                    nbinsx=nbinsx,
+                )
+            )
+            #Ensure not duplicating error bars if withLine==True
+            legendLabels.add(nameLabel_colour)
+
+
+        return self.outPlots(traces, layout,
+                             sub("[[:punct:] ]+", "", title_text),
+                             out_type,
+                             toDisk=toDisk)
+
+
     def plot_box(
         self,
         data: pd.DataFrame,
         y_var: str,
         x_var: str,
-        c_name: [str,None],
+        c_name: [str,None] = None,
         ylims: Union[list[float], None] = None,
         xlims: Union[list[float], None] = None,
         legend: bool = True,
@@ -1344,8 +1478,6 @@ class Visualisation:
         meta_vars = None,
         out_type = "trace",
         highlight = None,
-        y_filterLow = None,
-        y_filterHigh = None,
         is_errorY = False,
         cols_errorY = ["Lower", "Upper"],
         toDisk = False,
@@ -1392,7 +1524,6 @@ class Visualisation:
                                            y_var,
                                            x_var,
                                            c_name,
-                                           y_filterLow, y_filterHigh,
                                            ylims,
                                            xlims,)
 
@@ -1510,6 +1641,32 @@ class Visualisation:
                       dict_yaxis,
                       dict_xaxis,
                       title_text,):
+        dict_xaxis["ticklabelstep"] = 1
+        title_text = title_text
+        layout = Layout(
+            title_text=title_text,
+            legend_title_text=self.dict_lay.legend_title_text,
+            legend_title_font_size=self.dict_lay.axes_title_font_size,
+            legend_font_size=self.dict_lay.legend_font_size,
+            legend_valign=self.dict_lay.legend_valign,
+            legend_x = self.dict_lay.legend_x,
+            legend_y = self.dict_lay.legend_y,
+            legend_xanchor = self.dict_lay.legend_xanchor,
+            legend_yanchor = self.dict_lay.legend_yanchor,
+            margin=self.dict_lay.margin,
+            font=self.dict_lay.make_dict_font(),
+            title=self.dict_lay.make_dict_title(),
+            xaxis=dict_xaxis,
+            yaxis=dict_yaxis,
+            plot_bgcolor=self.dict_lay.plot_bgcolor,
+        )
+        return layout
+
+
+    def get_histLayout(self,
+                       dict_yaxis,
+                       dict_xaxis,
+                       title_text,):
         dict_xaxis["ticklabelstep"] = 1
         title_text = title_text
         layout = Layout(
