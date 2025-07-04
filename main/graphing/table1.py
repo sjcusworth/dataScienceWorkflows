@@ -164,8 +164,8 @@ class table1_polars:
                     n_missing=pl.col("n_missing").first(),
                     group_total=pl.col("group_total").first(),
                     )
-                .remove(
-                    pl.any_horizontal(pl.all().is_null())
+                .filter(
+                    pl.col(catg).is_not_null()
                     )
                 .collect()
                 )
