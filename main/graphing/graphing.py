@@ -1109,40 +1109,29 @@ class Visualisation:
                 legendgroup = "group"
 
             #Create traces
-            if withPoints:
-                traces.append(
-                    Scatter(
-                        x=group_col[x_var],
-                        y=group_col[y_var],
-                        mode="markers",
-                        marker=dict_marker,
-                        showlegend=all([legend,
-                                        nameLabel_colour not in legendLabels]),
-                        legendgroup=nameLabel_colour,#legendgroup,
-                        name=nameLabel_colour,
-                        hoverinfo="text",
-                        hovertext=meta_label,
-                        error_y=dict_error_y,
-                    )
+            if withPoints and withLine:
+                mode = "lines+markers"
+            elif withPoints:
+                mode = "markers"
+            else:
+                mode = 'lines'
+
+            traces.append(
+                Scatter(
+                    x=group_col[x_var],
+                    y=group_col[y_var],
+                    mode=mode,
+                    marker=dict_marker,
+                    line=dict_line,
+                    showlegend=legend,
+                    legendgroup=nameLabel_colour,#legendgroup,
+                    name=nameLabel_colour,
+                    hoverinfo="text",
+                    hovertext=meta_label,
+                    error_y=dict_error_y,
                 )
-                #Ensure not duplicating error bars if withLine==True
-                dict_error_y = None
-            if withLine:
-                traces.append(
-                    Scatter(
-                        x=group_col[x_var],
-                        y=group_col[y_var],
-                        mode="lines",
-                        marker=dict_marker,
-                        line=dict_line,
-                        #if withPoints is False AND showlegend is True
-                        showlegend=all([not withPoints, legend,
-                                        nameLabel_colour not in legendLabels]),
-                        legendgroup=nameLabel_colour,#legendgroup,
-                        name=nameLabel_colour,
-                        error_y=dict_error_y,
-                    )
-                )
+            )
+
             legendLabels.add(nameLabel_colour)
 
 
