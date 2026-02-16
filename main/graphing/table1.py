@@ -65,8 +65,7 @@ class table1_polars:
         self.nums = nums
         self.rnd = rnd
 
-        self.calc_sig = calc_sig
-        if self.calc_sig:
+        if group_col is not None:
             self.group_col = group_col
             self.groups_uniq = (
                     pl.scan_parquet(fileDat)
@@ -78,6 +77,8 @@ class table1_polars:
             self.group_col = "group_"
             self.groups_uniq = ["group"]
             cols_select = self.catgs + self.nums
+
+        self.calc_sig = calc_sig
 
         self.datLazy_raw = (
                 pl.scan_parquet(fileDat)
@@ -91,6 +92,14 @@ class table1_polars:
                     .name.keep()
                     )
                 )
+        # init group_col if no group col defined
+        if group_col is None:
+            self.datLazy_raw = (
+                    self.datLazy_raw
+                    .with_columns(
+                        pl.lit(self.groups_uniq[0]).alias(self.group_col)
+                        )
+                    )
 
         self.n_total = self.datLazy_raw.select(pl.len()).collect().item()
 
@@ -116,13 +125,6 @@ class table1_polars:
             A DataFrame of table1 stats for catg col.
         """
         dat_catg = self.datLazy_raw
-        if not self.calc_sig:
-            dat_catg = (
-                    dat_catg
-                    .with_columns(
-                        pl.lit("group").alias(self.group_col),
-                        )
-                    )
 
         dat_missing = (
                 dat_catg
@@ -190,7 +192,10 @@ class table1_polars:
                     .select(pl.col(["left", "right"]))
                     .with_columns(pl.all().fill_null(strategy="zero"))
                     )
-            p = chi2_contingency(dat_chi.to_numpy()).pvalue
+            try:
+                p = chi2_contingency(dat_chi.to_numpy()).pvalue
+            except:
+                p = "ERROR"
             dat_catg = dat_catg.with_columns(
                     pvalue=pl.lit(p),
                     )
@@ -213,13 +218,6 @@ class table1_polars:
             A DataFrame of table1 stats for num col.
         """
         dat_num = self.datLazy_raw
-        if not self.calc_sig:
-            dat_num = (
-                    dat_num
-                    .with_columns(
-                        pl.lit("group").alias(self.group_col),
-                        )
-                    )
 
         dat_num = (
                 dat_num
@@ -275,7 +273,10 @@ class table1_polars:
                         .to_numpy()
                         ),
                     ]
-            p = ttest_ind(*dat_ttest).pvalue
+            try:
+                p = ttest_ind(*dat_ttest).pvalue
+            except:
+                p = "ERROR"
 
             dat_num = dat_num.with_columns(
                     pvalue=pl.lit(p),
@@ -324,43 +325,52 @@ class table1_polars:
                             f"{sc_dat['n'][0]} ({round(sc_dat['percent'][0], self.rnd)}%)", #count
                             ]
 
-                # needs amending
-                    # currently, if category non-existent in a group,
-                    # will skip and add missing to the 1st existent group.
-                    # Works, but will lead to missing not being in 1st row
-                    # NOTE: Fixed below; doesn't work if one is missing from 1 group but not the other
                 if add_missing:
-                    n_missing_ = (
-                            self.tb1[group]
-                            .filter(
-                                pl.col(self.group_col).eq(expstatus_)
-                                )
-                            .get_column("n_missing")
-                            .to_list()[0]
-                            )
-                    group_total_ = (
-                            self.tb1[group]
-                            .filter(
-                                pl.col(self.group_col).eq(expstatus_)
-                                )
-                            .get_column("group_total")
-                            .to_list()[0]
-                            )
-                    if self.calc_sig:
-                        pvalue_ = (
+                    # check data available for tb1[group] of current expstatus
+                    if self.tb1[group].filter(pl.col(self.group_col).eq(expstatus_)).shape[0] != 0:
+                        n_missing_ = (
                                 self.tb1[group]
                                 .filter(
                                     pl.col(self.group_col).eq(expstatus_)
                                     )
-                                .get_column("pvalue")
+                                .get_column("n_missing")
                                 .to_list()[0]
                                 )
+                        group_total_ = (
+                                self.tb1[group]
+                                .filter(
+                                    pl.col(self.group_col).eq(expstatus_)
+                                    )
+                                .get_column("group_total")
+                                .to_list()[0]
+                                )
+                        if self.calc_sig:
+                            pvalue_ = (
+                                    self.tb1[group]
+                                    .filter(
+                                        pl.col(self.group_col).eq(expstatus_)
+                                        )
+                                    .get_column("pvalue")
+                                    .to_list()[0]
+                                    )
+                    else:
+                        n_missing_ = 0
+                        group_total_ = 0
+                        # if no data for available for 1 expstatus in this group
+                        # statistical test will not run
+                        pvalue_ = "ERROR"
 
                     out_[0] = str(group)
-                    missing_percent_ = (n_missing_/group_total_)*100
+                    if n_missing_ != 0:
+                        missing_percent_ = (n_missing_/group_total_)*100
+                    else:
+                        missing_percent_ = 0
                     out_[2] = f"{n_missing_} ({round(missing_percent_, self.rnd)}%)"
                     if self.calc_sig:
-                        out_.append(str(round(pvalue_, self.rnd)))
+                        if pvalue_ != "ERROR":
+                            out_.append(str(round(pvalue_, self.rnd)))
+                        else:
+                            out_.append("ERROR")
 
                     add_missing=False
 
@@ -406,11 +416,13 @@ class table1_polars:
             for sc_ in [["mean", "std"], ["median", "min", "max"]]:
                 #sc_dat = self.tb1[group].select(sc_ + [self.group_col, "n_missing", "pvalue"]).filter(pl.col(self.group_col).eq(expstatus_))
                 sc_dat = self.tb1[group].filter(pl.col(self.group_col).eq(expstatus_))
+
+                # Note: When 1 row, std will return null, hence the below checking for null
                 out_ = [
                         "", #group
                         " ".join(sc_), #subgroup
                         "", #missing
-                        " ".join([str(round(sc_dat[x][0], self.rnd)) for x in sc_]), #count
+                        " ".join(["null" if sc_dat[x][0] is None else str(round(sc_dat[x][0], self.rnd)) for x in sc_]), #count
                         ]
 
                 if add_missing:
@@ -468,9 +480,12 @@ class table1_polars:
                 'Count',
                 ]
 
-        if self.calc_sig:
+        if len(self.groups_uniq) > 1:
             file.write(f",,Group_{self.groups_uniq[0]},,Group_{self.groups_uniq[1]},,\n")
-            col_labels = col_labels + ["Missing", "Count", "pvalue",]
+            if self.calc_sig:
+                col_labels = col_labels + ["Missing", "Count", "pvalue",]
+            else:
+                col_labels = col_labels + ["Missing", "Count",]
 
         file.write(f"{self.delim.join(col_labels)}\n")
 
