@@ -231,7 +231,7 @@ class PropensityScores():
         """
         dat_ = pl.DataFrame({
             "prop_score": self.prop_scores,
-            "y": self.data.select(self.var_y).collect().to_numpy(),
+            "y": self.data.select(pl.col(self.var_y)).collect().get_column(self.var_y).to_numpy(),
             })
 
         if estimand == "ATT":
