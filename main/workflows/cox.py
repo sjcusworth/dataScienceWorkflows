@@ -402,7 +402,14 @@ class Cox:
                     figure,
                     )
 
-            figure.write_html(str(outdir_ / f"{var_}.html"))
+            dpi = self.graphing.dict_lay.dpi
+            figure.write_image(
+                    str(outdir_ / f"{var_}.html"),
+                    engine="kaleido",
+                    width=self.graphing.dict_lay.width*dpi,
+                    height=self.graphing.dict_lay.height*dpi,
+                    scale=1,
+                    )
 
 
     def check_multicolinearity(
@@ -515,7 +522,14 @@ class Cox:
                     figure,
                     )
 
-            figure.write_html(str(outdir_ / f"{var_}.html"))
+            dpi = self.graphing.dict_lay.dpi
+            figure.write_image(
+                    str(outdir_ / f"{var_}.html"),
+                    engine="kaleido",
+                    width=self.graphing.dict_lay.width*dpi,
+                    height=self.graphing.dict_lay.height*dpi,
+                    scale=1,
+                    )
 
 
     def check_influentialobservations(
@@ -604,7 +618,14 @@ class Cox:
                 yaxis_limits[1] = limits_bound
             figure.update_layout(yaxis_range=yaxis_limits)
 
-            figure.write_html(str(outdir_ / f"{var_}.html"))
+            dpi = self.graphing.dict_lay.dpi
+            figure.write_image(
+                    str(outdir_ / f"{var_}.html"),
+                    engine="kaleido",
+                    width=self.graphing.dict_lay.width*dpi,
+                    height=self.graphing.dict_lay.height*dpi,
+                    scale=1,
+                    )
 
 
     def report(self,) -> tuple[list[str], dict]:
