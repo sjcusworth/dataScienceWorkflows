@@ -372,7 +372,7 @@ class Cox:
 
         outdir_: PurePath = self.checkoutdir(outdir)
 
-        resid = self.model.compute_residuals(dat, "schoenfeld")
+        resid = self.model.compute_residuals(dat, "scaled_schoenfeld")
         resid["id"] = resid.index
 
         for var_ in [x for x in resid.columns if x!="id"]:
