@@ -890,11 +890,6 @@ class Visualisation:
                  xlims=None,
                  ):
 
-        #Rm missing values
-        if y_var is not None:
-            data = data[(data[y_var].notna() | ~data[y_var].apply(npisnan))]
-        if x_var is not None:
-            data = data[(data[x_var].notna() | ~data[x_var].apply(npisnan))]
 
         if y_var is not None:
             is_yNumeric = str(data[y_var].dtype).lower().startswith("int") or \
@@ -902,6 +897,16 @@ class Visualisation:
         if x_var is not None:
             is_xNumeric = str(data[x_var].dtype).lower().startswith("int") or \
                     str(data[x_var].dtype).lower().startswith("float")
+
+        #Rm missing values
+        if y_var is not None and is_yNumeric:
+            data = data[(data[y_var].notna() | ~data[y_var].apply(npisnan))]
+        else:
+            data = data[(data[y_var].notna())]
+        if x_var is not None and is_xNumeric:
+            data = data[(data[x_var].notna() | ~data[x_var].apply(npisnan))]
+        else:
+            data = data[(data[x_var].notna())]
 
         if y_var is not None and is_yNumeric:
             if data[y_var].min()>=0:
