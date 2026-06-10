@@ -982,6 +982,7 @@ class Visualisation:
         col_colour = None,
         useObjectColours = False,
         colourDictionaryId = None,
+        title: Optional[str] = "",
     ) -> tuple[list[Scatter], Layout, dict[str, object], dict[str, object],]:
         """
         Plot a simple scatter graph
@@ -1044,11 +1045,12 @@ class Visualisation:
         dict_xaxis, dict_yaxis, ylims = self.make_dict_axes(ylims, y_var,
                                              xlims, x_var,)
 
-        title_text = f"{y_var} trend by {x_var}"
+        if title == "":
+            title = f"{y_var} trend by {x_var}"
 
         layout = self.get_scatterLayout(dict_yaxis,
                                         dict_xaxis,
-                                        title_text,)
+                                        title,)
 
         #Plotting
         traces = []
@@ -1140,8 +1142,16 @@ class Visualisation:
             legendLabels.add(nameLabel_colour)
 
 
+        if title == "" or title is None:
+            lab_save = f"{y_var} trend by {x_var}"
+        else:
+            lab_save = title
+
+        if title is None:
+            layout.title.pad={'t':0, 'b':0, 'l':0, 'r':0,}
+
         return self.outPlots(traces, layout,
-                             sub("[[:punct:] ]+", "", title_text),
+                             sub("[[:punct:] ]+", "", lab_save),
                              out_type,
                              toDisk=toDisk)
 
