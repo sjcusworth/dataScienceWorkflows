@@ -373,14 +373,15 @@ class Cox:
         outdir_: PurePath = self.checkoutdir(outdir)
 
         resid = self.model.compute_residuals(dat, "scaled_schoenfeld")
-        resid["id"] = resid.index
+        # pandas aligns series and dataframe by index automatically
+        resid["time"] = dat.loc[dat[self.event_col]==True, self.duration_col]
 
         for var_ in [x for x in resid.columns if x!="id"]:
             figure = self.graphing.plot_scatter(
                     resid,
                     y_var=var_,
-                    x_var="id",
-                    meta_vars=[var_, "id"],
+                    x_var="time",
+                    meta_vars=[var_, "time"],
                     interactive=True,
                     toDisk=False,
                     out_type="interactive",
@@ -390,7 +391,7 @@ class Cox:
 
             figure = self.plot_lowess(
                     resid,
-                    x_var = "id",
+                    x_var = "time",
                     y_var = var_,
                     figure = figure,
                     lowess_smooth = lowess_smooth,
@@ -398,7 +399,7 @@ class Cox:
 
             figure = self.plot_baseline(
                     resid,
-                    "id",
+                    "time",
                     figure,
                     )
 
