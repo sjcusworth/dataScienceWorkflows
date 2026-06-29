@@ -404,7 +404,7 @@ class Cox:
 
             dpi = self.graphing.dict_lay.dpi
             figure.write_image(
-                    str(outdir_ / f"{var_}.html"),
+                    str(outdir_ / f"{var_}.png"),
                     engine="kaleido",
                     width=self.graphing.dict_lay.width*dpi,
                     height=self.graphing.dict_lay.height*dpi,
@@ -524,7 +524,7 @@ class Cox:
 
             dpi = self.graphing.dict_lay.dpi
             figure.write_image(
-                    str(outdir_ / f"{var_}.html"),
+                    str(outdir_ / f"{var_}.png"),
                     engine="kaleido",
                     width=self.graphing.dict_lay.width*dpi,
                     height=self.graphing.dict_lay.height*dpi,
@@ -620,7 +620,7 @@ class Cox:
 
             dpi = self.graphing.dict_lay.dpi
             figure.write_image(
-                    str(outdir_ / f"{var_}.html"),
+                    str(outdir_ / f"{var_}.png"),
                     engine="kaleido",
                     width=self.graphing.dict_lay.width*dpi,
                     height=self.graphing.dict_lay.height*dpi,
