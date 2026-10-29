@@ -242,8 +242,8 @@ class table1_polars:
                     mean=pl.col(num).mean(),
                     std=pl.col(num).std(),
                     median=pl.col(num).median(),
-                    min=pl.col(num).min(),
-                    max=pl.col(num).max(),
+                    first_quart=pl.col(num).quantile(0.25),
+                    third_quart=pl.col(num).quantile(0.75),
                     n_missing=-pl.col(num).is_not_null().sum().cast(pl.Int64) + pl.col("subgrp_n_total").first(),
                     group_total=pl.col(num).len(),
                     )
@@ -413,7 +413,7 @@ class table1_polars:
         for i, expstatus_ in enumerate(self.groups_uniq):
             add_missing=True
 
-            for sc_ in [["mean", "std"], ["median", "min", "max"]]:
+            for sc_ in [["mean", "std"], ["median", "first_quart", "third_quart"]]:
                 #sc_dat = self.tb1[group].select(sc_ + [self.group_col, "n_missing", "pvalue"]).filter(pl.col(self.group_col).eq(expstatus_))
                 sc_dat = self.tb1[group].filter(pl.col(self.group_col).eq(expstatus_))
 
